@@ -527,9 +527,40 @@ updateSensorChart();
 setInterval(updateSensorChart, 5000);
 </script>
 
+<script>
+// ================== AUTO UPDATE LAST COMMAND ==================
+async function updateLastCommand() {
+  try {
+    const res = await fetch('../api/latest_command.php?nocache=' + new Date().getTime());
+    const cmd = await res.json();
+    if (!cmd || cmd.error) return;
+
+    // Build HTML dynamically
+    let html = `
+      <p><strong>ID:</strong> ${cmd.id} | 
+         <strong>Source:</strong> ${cmd.source} | 
+         <strong>Time:</strong> ${cmd.created_at}</p>
+      <ul>
+        <li>Heater: ${cmd.heater ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Fan: ${cmd.fan ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Pump: ${cmd.pump ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Light: ${cmd.light_act ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+      </ul>
+    `;
+    document.getElementById('lastCommandBody').innerHTML = html;
+  } catch (err) {
+    console.error('Failed to update last command:', err);
+  }
+}
+
+// Run every 5 seconds
+updateLastCommand();
+setInterval(updateLastCommand, 5000);
+</script>
 
 
 </body>
 </html>
+
 
 
