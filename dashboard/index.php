@@ -2,33 +2,7 @@
 
 <?php
 require_once __DIR__ . '/../config.php';
-
-$readings = $pdo->query("SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 20")->fetchAll();
-$lastCmd = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1")->fetch();
-
-$latest = $readings ? $readings[0] : null; // newest row
-
-// prepare chart data
-$timestamps = [];
-$tempData = [];
-$humData = [];
-$soilData = [];
-$lightData = [];
-
-foreach (array_reverse($readings) as $r) {
-    $timestamps[] = $r['created_at'];
-    $tempData[] = (float)$r['temp'];
-    $humData[] = (float)$r['humidity'];
-    $soilData[] = (float)$r['soil_moisture'];
-    $lightData[] = (float)$r['light_intensity'];
-}
-?>
-
-<?php require_once '../auth.php'; ?>
-<?php
-require_once __DIR__ . '/../config.php';
-
-// Pagination setup
+// =============== PAGINATION ===============
 $limit = 10; // number of readings per page
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
@@ -45,25 +19,12 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $readings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Fetch latest command
 $lastCmd = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1")->fetch();
-$latest = $readings ? $readings[0] : null; // newest row
 
-// Prepare chart data
-$timestamps = [];
-$tempData = [];
-$humData = [];
-$soilData = [];
-$lightData = [];
-
-foreach (array_reverse($readings) as $r) {
-    $timestamps[] = $r['created_at'];
-    $tempData[] = (float)$r['temp'];
-    $humData[] = (float)$r['humidity'];
-    $soilData[] = (float)$r['soil_moisture'];
-    $lightData[] = (float)$r['light_intensity'];
-}
+// Latest reading
+$latest = $pdo->query("SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 1")->fetch();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -77,7 +38,6 @@ foreach (array_reverse($readings) as $r) {
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
@@ -92,34 +52,25 @@ foreach (array_reverse($readings) as $r) {
       <li class="nav-item d-none d-sm-inline-block">
         <a href="index.php" class="nav-link">Dashboard</a>
       </li>
-      
     </ul>
     <ul class="navbar-nav ml-auto">
-  <!-- Right navbar links -->
-<ul class="navbar-nav ml-auto">
-
-  <!-- User Dropdown Menu -->
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-expanded="false">
-      <i class="fas fa-user-circle"></i> <?php echo $_SESSION['username']; ?>
-    </a>
-    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
-      <span class="dropdown-header">Account</span>
-      <div class="dropdown-divider"></div>
-      <a href="change_password.php" class="dropdown-item">
-        <i class="fas fa-key mr-2 text-primary"></i> Change Password
-      </a>
-      <div class="dropdown-divider"></div>
-      <a href="logout.php" class="dropdown-item text-danger">
-        <i class="fas fa-sign-out-alt mr-2"></i> Logout
-      </a>
-    </div>
-  </li>
-</ul>
-
-  
-</ul>
-
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">
+          <i class="fas fa-user-circle"></i> <?= $_SESSION['username']; ?>
+        </a>
+        <div class="dropdown-menu dropdown-menu-right shadow">
+          <span class="dropdown-header">Account</span>
+          <div class="dropdown-divider"></div>
+          <a href="change_password.php" class="dropdown-item">
+            <i class="fas fa-key mr-2 text-primary"></i> Change Password
+          </a>
+          <div class="dropdown-divider"></div>
+          <a href="logout.php" class="dropdown-item text-danger">
+            <i class="fas fa-sign-out-alt mr-2"></i> Logout
+          </a>
+        </div>
+      </li>
+    </ul>
   </nav>
 
   <!-- Sidebar -->
@@ -130,7 +81,7 @@ foreach (array_reverse($readings) as $r) {
     </a>
     <div class="sidebar">
       <nav class="mt-2">
-        <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+        <ul class="nav nav-pills nav-sidebar flex-column">
           <li class="nav-item">
             <a href="index.php" class="nav-link active">
               <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -155,156 +106,91 @@ foreach (array_reverse($readings) as $r) {
 
         <!-- Summary Cards -->
         <div class="row">
-          <div class="col-md-3 col-sm-6 col-12">
-            <div class="info-box bg-danger">
-              <span class="info-box-icon"><i class="fas fa-thermometer-half"></i></span>
-              <div class="info-box-content">
-                <span class="info-box-text">Temperature</span>
-                <span class="info-box-number"><?= $latest ? $latest['temp']." °C" : "N/A" ?></span>
+          <?php
+          $cards = [
+            ["Temperature", "°C", "bg-danger", "fas fa-thermometer-half", $latest['temp'] ?? "N/A"],
+            ["Humidity", "%", "bg-primary", "fas fa-tint", $latest['humidity'] ?? "N/A"],
+            ["Soil Moisture", "%", "bg-success", "fas fa-seedling", $latest['soil_moisture'] ?? "N/A"],
+            ["Light", "", "bg-warning", "fas fa-sun", $latest['light_intensity'] ?? "N/A"]
+          ];
+          foreach ($cards as $c): ?>
+            <div class="col-md-3 col-sm-6 col-12">
+              <div class="info-box <?= $c[2] ?>">
+                <span class="info-box-icon"><i class="<?= $c[3] ?>"></i></span>
+                <div class="info-box-content">
+                  <span class="info-box-text"><?= $c[0] ?></span>
+                  <span class="info-box-number"><?= $c[4] . " " . $c[1] ?></span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="col-md-3 col-sm-6 col-12">
-            <div class="info-box bg-primary">
-              <span class="info-box-icon"><i class="fas fa-tint"></i></span>
-              <div class="info-box-content">
-                <span class="info-box-text">Humidity</span>
-                <span class="info-box-number"><?= $latest ? $latest['humidity']." %" : "N/A" ?></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-3 col-sm-6 col-12">
-            <div class="info-box bg-success">
-              <span class="info-box-icon"><i class="fas fa-seedling"></i></span>
-              <div class="info-box-content">
-                <span class="info-box-text">Soil Moisture</span>
-                <span class="info-box-number"><?= $latest ? $latest['soil_moisture']." %" : "N/A" ?></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-3 col-sm-6 col-12">
-            <div class="info-box bg-warning">
-              <span class="info-box-icon"><i class="fas fa-sun"></i></span>
-              <div class="info-box-content">
-                <span class="info-box-text">Light</span>
-                <span class="info-box-number"><?= $latest ? $latest['light_intensity'] : "N/A" ?></span>
-              </div>
-            </div>
-          </div>
+          <?php endforeach; ?>
         </div>
 
         <!-- Last Command -->
         <div class="card card-success">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-cogs"></i> Last Command</h3>
-          </div>
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-cogs"></i> Last Command</h3></div>
           <div class="card-body">
-            <?php if($lastCmd): ?>
-              <p><strong>ID:</strong> <?= $lastCmd['id'] ?> | 
-                 <strong>Source:</strong> <?= $lastCmd['source'] ?> | 
-                 <strong>Time:</strong> <?= $lastCmd['created_at'] ?></p>
+            <?php if ($lastCmd): ?>
+              <p><strong>ID:</strong> <?= $lastCmd['id'] ?> |
+              <strong>Source:</strong> <?= $lastCmd['source'] ?> |
+              <strong>Time:</strong> <?= $lastCmd['created_at'] ?></p>
               <ul>
                 <li>Heater: <?= $lastCmd['heater'] ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
                 <li>Fan: <?= $lastCmd['fan'] ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
                 <li>Pump: <?= $lastCmd['pump'] ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
                 <li>Light: <?= $lastCmd['light_act'] ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
               </ul>
-            <?php else: ?>
-              <p>No commands yet.</p>
-            <?php endif; ?>
-          </div>
-        </div>
-
-        <!-- Manual Controls -->
-        <div class="card card-primary">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-sliders-h"></i> Manual Controls</h3>
-          </div>
-          <div class="card-body">
-            <form id="manualForm">
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="heater">
-                <label class="form-check-label" for="heater">Heater</label>
-              </div>
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="fan">
-                <label class="form-check-label" for="fan">Fan</label>
-              </div>
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="pump">
-                <label class="form-check-label" for="pump">Pump</label>
-              </div>
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="light_act">
-                <label class="form-check-label" for="light_act">Light</label>
-              </div>
-              <button type="button" class="btn btn-success mt-3" onclick="sendManual()">Send Manual Command</button>
-            </form>
+            <?php else: ?><p>No commands yet.</p><?php endif; ?>
           </div>
         </div>
 
         <!-- Sensor Readings Table -->
-        <!-- Sensor Readings Table -->
-<div class="card card-info">
-  <div class="card-header">
-    <h3 class="card-title"><i class="fas fa-table"></i> Recent Sensor Readings</h3>
-  </div>
-  <div class="card-body table-responsive p-2">
+        <div class="card card-info">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-table"></i> Recent Sensor Readings</h3></div>
+          <div class="card-body table-responsive p-2">
+            <p class="text-muted">
+              Showing <?= ($offset + 1) ?>–<?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> readings
+            </p>
+            <table class="table table-hover table-bordered text-nowrap">
+              <thead class="table-dark">
+                <tr>
+                  <th>Time</th><th>Temp (°C)</th><th>Humidity (%)</th><th>Soil Moisture (%)</th><th>Light</th>
+                </tr>
+              </thead>
+              <tbody>
+              <?php if ($readings): foreach ($readings as $r): ?>
+                <tr>
+                  <td><?= htmlspecialchars($r['created_at']) ?></td>
+                  <td><?= htmlspecialchars($r['temp']) ?></td>
+                  <td><?= htmlspecialchars($r['humidity']) ?></td>
+                  <td><?= htmlspecialchars($r['soil_moisture']) ?></td>
+                  <td><?= htmlspecialchars($r['light_intensity']) ?></td>
+                </tr>
+              <?php endforeach; else: ?>
+                <tr><td colspan="5" class="text-center text-muted">No readings found.</td></tr>
+              <?php endif; ?>
+              </tbody>
+            </table>
 
-    <p class="text-muted">
-      Showing <?= ($offset + 1) ?>–<?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> readings
-    </p>
+            <nav aria-label="Sensor Readings Pagination">
+              <ul class="pagination justify-content-center mt-3">
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                  <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
+                </li>
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                  <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
+                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                  </li>
+                <?php endfor; ?>
+                <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+                  <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        </div>
 
-    <table class="table table-hover table-bordered text-nowrap">
-      <thead class="table-dark">
-        <tr>
-          <th>Time</th>
-          <th>Temp (°C)</th>
-          <th>Humidity (%)</th>
-          <th>Soil Moisture (%)</th>
-          <th>Light</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php if ($readings): ?>
-          <?php foreach ($readings as $r): ?>
-            <tr>
-              <td><?= htmlspecialchars($r['created_at']) ?></td>
-              <td><?= htmlspecialchars($r['temp']) ?></td>
-              <td><?= htmlspecialchars($r['humidity']) ?></td>
-              <td><?= htmlspecialchars($r['soil_moisture']) ?></td>
-              <td><?= htmlspecialchars($r['light_intensity']) ?></td>
-            </tr>
-          <?php endforeach; ?>
-        <?php else: ?>
-          <tr><td colspan="5" class="text-center text-muted">No readings found.</td></tr>
-        <?php endif; ?>
-      </tbody>
-    </table>
-
-    <!-- Pagination Controls -->
-    <nav aria-label="Sensor Readings Pagination">
-      <ul class="pagination justify-content-center mt-3">
-        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
-        </li>
-
-        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-          <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-            <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-          </li>
-        <?php endfor; ?>
-
-        <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
-        </li>
-      </ul>
-    </nav>
-  </div>
-</div>
-
-
-        <!-- Charts -->
+        <!-- Sensor Trends Chart -->
         <div class="card card-warning">
           <div class="card-header">
             <h3 class="card-title"><i class="fas fa-chart-line"></i> Sensor Trends</h3>
@@ -325,129 +211,45 @@ foreach (array_reverse($readings) as $r) {
   </footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
-
+<!-- Chart Logic -->
 <script>
-const MODE_CHECK_INTERVAL = 5000;
-let overrideEndTime = null;
+async function loadSensorTrends() {
+  const response = await fetch('../api/latest_readings.php');
+  const readings = await response.json();
 
-// Mode display check
-async function checkMode() {
-  const res = await fetch('../api/get_command.php');
-  const cmd = await res.json();
+  const labels = readings.map(r => r.created_at.substring(11, 16));
+  const tempData = readings.map(r => parseFloat(r.temp));
+  const humData = readings.map(r => parseFloat(r.humidity));
+  const soilData = readings.map(r => parseFloat(r.soil_moisture));
+  const lightData = readings.map(r => parseFloat(r.light_intensity));
 
-  if (cmd.source === 'manual') {
-    const createdAt = new Date(cmd.created_at);
-    const expires = new Date(createdAt.getTime() + 5 * 60000);
-    const now = new Date();
-    const diffMs = expires - now;
-
-    if (diffMs > 0) {
-      const mins = Math.floor(diffMs / 60000);
-      const secs = Math.floor((diffMs % 60000) / 1000);
-      document.getElementById('modeDisplay').innerHTML =
-        `<span class="override-active">Manual Override Active</span> (expires in ${mins}:${secs.toString().padStart(2, '0')})`;
-      document.getElementById('cancelOverrideBtn').classList.remove('d-none');
-      overrideEndTime = expires;
-    } else {
-      document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
-      document.getElementById('cancelOverrideBtn').classList.add('d-none');
+  const ctx = document.getElementById('sensorChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Temperature (°C)', data: tempData, borderColor: 'red', fill: false, tension: 0.3 },
+        { label: 'Humidity (%)', data: humData, borderColor: 'blue', fill: false, tension: 0.3 },
+        { label: 'Soil Moisture (%)', data: soilData, borderColor: 'green', fill: false, tension: 0.3 },
+        { label: 'Light Intensity', data: lightData, borderColor: 'orange', fill: false, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        title: { display: true, text: 'Sensor Trends (Last 20 Readings)' }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Time' } },
+        y: { title: { display: true, text: 'Value' }, beginAtZero: true }
+      }
     }
-  } else {
-    document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
-    document.getElementById('cancelOverrideBtn').classList.add('d-none');
-  }
-}
-setInterval(checkMode, MODE_CHECK_INTERVAL);
-checkMode();
-
-// Manual command sender
-async function sendManual() {
-  const data = {
-    heater: document.getElementById('heater').checked ? 1 : 0,
-    fan: document.getElementById('fan').checked ? 1 : 0,
-    pump: document.getElementById('pump').checked ? 1 : 0,
-    light_act: document.getElementById('light_act').checked ? 1 : 0
-  };
-  const res = await fetch('../api/manual_command.php', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(data)
   });
-  const json = await res.json();
-  if (json.status === 'ok') {
-    alert('Manual override sent!');
-    checkMode();
-  }
 }
-
-// Cancel override
-async function cancelOverride() {
-  const res = await fetch('../api/save_reading.php', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({"temp":25,"humidity":50,"soil_moisture":50,"light_intensity":500})
-  });
-  await res.json();
-  alert('Manual override cancelled. System back to KNN mode.');
-  checkMode();
-}
-
-// ==================== LIVE CHARTS ====================
-
-// Chart setup
-const tempCtx = document.getElementById('tempHumChart').getContext('2d');
-const soilCtx = document.getElementById('soilLightChart').getContext('2d');
-
-let tempHumChart = new Chart(tempCtx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'Temperature (°C)', data: [], borderColor: 'red', fill: false },
-      { label: 'Humidity (%)', data: [], borderColor: 'blue', fill: false }
-    ]
-  },
-  options: { responsive: true, animation: false }
-});
-
-let soilLightChart = new Chart(soilCtx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'Soil Moisture (%)', data: [], borderColor: 'green', fill: false },
-      { label: 'Light Intensity (lux)', data: [], borderColor: 'orange', fill: false }
-    ]
-  },
-  options: { responsive: true, animation: false }
-});
-
-// Fetch and update chart data
-async function updateCharts() {
-  const res = await fetch('../api/latest_readings.php');
-  const data = await res.json();
-
-  const labels = data.map(d => d.created_at.substring(11, 16));
-  const temps = data.map(d => parseFloat(d.temp));
-  const hums = data.map(d => parseFloat(d.humidity));
-  const soils = data.map(d => parseFloat(d.soil_moisture));
-  const lights = data.map(d => parseFloat(d.light_intensity));
-
-  tempHumChart.data.labels = labels;
-  tempHumChart.data.datasets[0].data = temps;
-  tempHumChart.data.datasets[1].data = hums;
-  tempHumChart.update();
-
-  soilLightChart.data.labels = labels;
-  soilLightChart.data.datasets[0].data = soils;
-  soilLightChart.data.datasets[1].data = lights;
-  soilLightChart.update();
-}
-
-updateCharts();
-setInterval(updateCharts, 10000); // every 10 seconds
+loadSensorTrends();
+setInterval(loadSensorTrends, 5000); // refresh every 5 seconds
 </script>
-
 </body>
 </html>
