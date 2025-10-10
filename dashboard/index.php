@@ -194,26 +194,32 @@ foreach (array_reverse($readings) as $r) {
         </div>
 
         <!-- Last Command -->
-        <div class="card card-success">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-cogs"></i> Last Command</h3>
-          </div>
-          <div class="card-body">
-            <?php if($lastCmd): ?>
-              <p><strong>ID:</strong> <?= $lastCmd['id'] ?> | 
-                 <strong>Source:</strong> <?= $lastCmd['source'] ?> | 
-                 <strong>Time:</strong> <?= $lastCmd['created_at'] ?></p>
-              <ul>
-                <li>Heater: <?= $lastCmd['heater'] ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
-                <li>Fan: <?= $lastCmd['fan'] ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
-                <li>Pump: <?= $lastCmd['pump'] ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
-                <li>Light: <?= $lastCmd['light_act'] ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>' ?></li>
-              </ul>
-            <?php else: ?>
-              <p>No commands yet.</p>
-            <?php endif; ?>
-          </div>
-        </div>
+        <?php
+require_once __DIR__ . '/../config.php';
+header('Content-Type: application/json');
+
+try {
+    $stmt = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1");
+    $cmd = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($cmd) {
+        echo json_encode([
+            "id" => (int)$cmd['id'],
+            "heater" => (int)$cmd['heater'],
+            "fan" => (int)$cmd['fan'],
+            "pump" => (int)$cmd['pump'],
+            "light_act" => (int)$cmd['light_act'],
+            "source" => $cmd['source'],
+            "created_at" => $cmd['created_at']
+        ]);
+    } else {
+        echo json_encode(["error" => "No commands found"]);
+    }
+} catch (Exception $e) {
+    echo json_encode(["error" => $e->getMessage()]);
+}
+?>
+
 
         <!-- Manual Controls -->
         <div class="card card-primary">
@@ -525,4 +531,5 @@ setInterval(updateSensorChart, 5000);
 
 </body>
 </html>
+
 
