@@ -284,22 +284,32 @@ foreach (array_reverse($readings) as $r) {
 
     <!-- Pagination Controls -->
     <nav aria-label="Sensor Readings Pagination">
-      <ul class="pagination justify-content-center mt-3">
-        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
-        </li>
+  <ul class="pagination justify-content-center mt-3">
+    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+      <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
+    </li>
 
-        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-          <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-            <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-          </li>
-        <?php endfor; ?>
+    <?php
+      // Limit visible pages to 10
+      $maxLinks = 10;
+      $startPage = max(1, $page - floor($maxLinks / 2));
+      $endPage = min($totalPages, $startPage + $maxLinks - 1);
+      if ($endPage - $startPage + 1 < $maxLinks) {
+          $startPage = max(1, $endPage - $maxLinks + 1);
+      }
 
-        <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
-        </li>
-      </ul>
-    </nav>
+      for ($i = $startPage; $i <= $endPage; $i++):
+    ?>
+      <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
+        <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+      </li>
+    <?php endfor; ?>
+
+    <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+      <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+    </li>
+  </ul>
+</nav>
   </div>
 </div>
 
@@ -515,3 +525,4 @@ setInterval(updateSensorChart, 5000);
 
 </body>
 </html>
+
