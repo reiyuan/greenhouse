@@ -449,13 +449,12 @@ updateCharts();
 setInterval(updateCharts, 10000); // every 10 seconds
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
 <script>
-// ==================== LIVE CHART (AUTO UPDATING) ====================
+// ==================== LIVE SENSOR CHART ====================
 
-// Initialize Chart.js
+// Create Chart.js line chart
 const ctx = document.getElementById('sensorChart').getContext('2d');
 let sensorChart = new Chart(ctx, {
   type: 'line',
@@ -470,21 +469,22 @@ let sensorChart = new Chart(ctx, {
   },
   options: {
     responsive: true,
+    animation: { duration: 800, easing: 'easeOutQuart' },
     plugins: {
       legend: { position: 'top' },
-      title: { display: true, text: 'Live Sensor Trends (auto updates every 10s)' }
+      title: { display: true, text: 'Live Sensor Trends (auto-updating)' }
     },
     scales: {
       x: { title: { display: true, text: 'Time' } },
-      y: { title: { display: true, text: 'Value' }, beginAtZero: true }
+      y: { beginAtZero: true, title: { display: true, text: 'Value' } }
     }
   }
 });
 
-// Fetch and update chart data
+// Fetch and update data every few seconds
 async function updateSensorChart() {
   try {
-    const res = await fetch('../api/latest_readings.php');
+    const res = await fetch('../api/latest_readings.php?nocache=' + new Date().getTime());
     const data = await res.json();
 
     if (!Array.isArray(data) || data.length === 0) return;
@@ -501,15 +501,16 @@ async function updateSensorChart() {
     sensorChart.data.datasets[2].data = soils;
     sensorChart.data.datasets[3].data = lights;
     sensorChart.update();
-  } catch (err) {
-    console.error('Failed to update chart:', err);
+  } catch (error) {
+    console.error('Chart update failed:', error);
   }
 }
 
-// Initial load + repeat every 10 seconds
+// Initial chart load + refresh every 5 seconds
 updateSensorChart();
-setInterval(updateSensorChart, 10000);
+setInterval(updateSensorChart, 5000);
 </script>
+
 
 
 </body>
