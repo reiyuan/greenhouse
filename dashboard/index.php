@@ -23,6 +23,47 @@ foreach (array_reverse($readings) as $r) {
     $lightData[] = (float)$r['light_intensity'];
 }
 ?>
+
+<?php require_once '../auth.php'; ?>
+<?php
+require_once __DIR__ . '/../config.php';
+
+// Pagination setup
+$limit = 10; // number of readings per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
+// Count total readings
+$totalStmt = $pdo->query("SELECT COUNT(*) FROM sensor_readings");
+$totalRecords = $totalStmt->fetchColumn();
+$totalPages = ceil($totalRecords / $limit);
+
+// Fetch paginated readings
+$stmt = $pdo->prepare("SELECT * FROM sensor_readings ORDER BY id DESC LIMIT :limit OFFSET :offset");
+$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
+$readings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$lastCmd = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1")->fetch();
+$latest = $readings ? $readings[0] : null; // newest row
+
+// Prepare chart data
+$timestamps = [];
+$tempData = [];
+$humData = [];
+$soilData = [];
+$lightData = [];
+
+foreach (array_reverse($readings) as $r) {
+    $timestamps[] = $r['created_at'];
+    $tempData[] = (float)$r['temp'];
+    $humData[] = (float)$r['humidity'];
+    $soilData[] = (float)$r['soil_moisture'];
+    $lightData[] = (float)$r['light_intensity'];
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,35 +244,65 @@ foreach (array_reverse($readings) as $r) {
         </div>
 
         <!-- Sensor Readings Table -->
-        <div class="card card-info">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-table"></i> Recent Sensor Readings</h3>
-          </div>
-          <div class="card-body table-responsive p-0">
-            <table class="table table-hover text-nowrap">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Temp (°C)</th>
-                  <th>Humidity (%)</th>
-                  <th>Soil Moisture (%)</th>
-                  <th>Light</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach($readings as $r): ?>
-                  <tr>
-                    <td><?= $r['created_at'] ?></td>
-                    <td><?= $r['temp'] ?></td>
-                    <td><?= $r['humidity'] ?></td>
-                    <td><?= $r['soil_moisture'] ?></td>
-                    <td><?= $r['light_intensity'] ?></td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <!-- Sensor Readings Table -->
+<div class="card card-info">
+  <div class="card-header">
+    <h3 class="card-title"><i class="fas fa-table"></i> Recent Sensor Readings</h3>
+  </div>
+  <div class="card-body table-responsive p-2">
+
+    <p class="text-muted">
+      Showing <?= ($offset + 1) ?>–<?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> readings
+    </p>
+
+    <table class="table table-hover table-bordered text-nowrap">
+      <thead class="table-dark">
+        <tr>
+          <th>Time</th>
+          <th>Temp (°C)</th>
+          <th>Humidity (%)</th>
+          <th>Soil Moisture (%)</th>
+          <th>Light</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if ($readings): ?>
+          <?php foreach ($readings as $r): ?>
+            <tr>
+              <td><?= htmlspecialchars($r['created_at']) ?></td>
+              <td><?= htmlspecialchars($r['temp']) ?></td>
+              <td><?= htmlspecialchars($r['humidity']) ?></td>
+              <td><?= htmlspecialchars($r['soil_moisture']) ?></td>
+              <td><?= htmlspecialchars($r['light_intensity']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <tr><td colspan="5" class="text-center text-muted">No readings found.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+
+    <!-- Pagination Controls -->
+    <nav aria-label="Sensor Readings Pagination">
+      <ul class="pagination justify-content-center mt-3">
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+          <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
+        </li>
+
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+          <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
+            <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+          </li>
+        <?php endfor; ?>
+
+        <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+          <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
 
         <!-- Charts -->
         <div class="card card-warning">
