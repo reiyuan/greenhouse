@@ -449,5 +449,68 @@ updateCharts();
 setInterval(updateCharts, 10000); // every 10 seconds
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// ==================== LIVE CHART (AUTO UPDATING) ====================
+
+// Initialize Chart.js
+const ctx = document.getElementById('sensorChart').getContext('2d');
+let sensorChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Temperature (°C)', data: [], borderColor: 'red', fill: false, tension: 0.3 },
+      { label: 'Humidity (%)', data: [], borderColor: 'blue', fill: false, tension: 0.3 },
+      { label: 'Soil Moisture (%)', data: [], borderColor: 'green', fill: false, tension: 0.3 },
+      { label: 'Light Intensity', data: [], borderColor: 'orange', fill: false, tension: 0.3 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' },
+      title: { display: true, text: 'Live Sensor Trends (auto updates every 10s)' }
+    },
+    scales: {
+      x: { title: { display: true, text: 'Time' } },
+      y: { title: { display: true, text: 'Value' }, beginAtZero: true }
+    }
+  }
+});
+
+// Fetch and update chart data
+async function updateSensorChart() {
+  try {
+    const res = await fetch('../api/latest_readings.php');
+    const data = await res.json();
+
+    if (!Array.isArray(data) || data.length === 0) return;
+
+    const labels = data.map(d => d.created_at.substring(11, 16));
+    const temps = data.map(d => parseFloat(d.temp));
+    const hums = data.map(d => parseFloat(d.humidity));
+    const soils = data.map(d => parseFloat(d.soil_moisture));
+    const lights = data.map(d => parseFloat(d.light_intensity));
+
+    sensorChart.data.labels = labels;
+    sensorChart.data.datasets[0].data = temps;
+    sensorChart.data.datasets[1].data = hums;
+    sensorChart.data.datasets[2].data = soils;
+    sensorChart.data.datasets[3].data = lights;
+    sensorChart.update();
+  } catch (err) {
+    console.error('Failed to update chart:', err);
+  }
+}
+
+// Initial load + repeat every 10 seconds
+updateSensorChart();
+setInterval(updateSensorChart, 10000);
+</script>
+
+
 </body>
 </html>
