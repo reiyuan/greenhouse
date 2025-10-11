@@ -523,39 +523,46 @@ setInterval(updateSensorChart, 5000);
 </script>
 
 <script>
-// ================== AUTO UPDATE LAST COMMAND ==================
 async function updateLastCommand() {
   try {
     const res = await fetch('../api/latest_command.php?nocache=' + new Date().getTime());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const cmd = await res.json();
-    if (!cmd || cmd.error) return;
 
-    // Build HTML dynamically
+    if (!cmd || cmd.error) {
+      document.getElementById('lastCommandBody').innerHTML = "<p>No commands yet.</p>";
+      return;
+    }
+
     let html = `
       <p><strong>ID:</strong> ${cmd.id} | 
          <strong>Source:</strong> ${cmd.source} | 
          <strong>Time:</strong> ${cmd.created_at}</p>
       <ul>
-        <li>Heater: ${cmd.heater ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Fan: ${cmd.fan ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Pump: ${cmd.pump ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Light: ${cmd.light_act ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Heater: ${cmd.heater == 1 ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Fan: ${cmd.fan == 1 ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Pump: ${cmd.pump == 1 ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Light: ${cmd.light_act == 1 ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
       </ul>
     `;
-    document.getElementById('lastCommandBody').innerHTML = html;
+    const el = document.getElementById('lastCommandBody');
+    el.innerHTML = html;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 400);
   } catch (err) {
-    console.error('Failed to update last command:', err);
+    console.error('Error updating last command:', err);
   }
 }
 
-// Run every 5 seconds
-updateLastCommand();
 setInterval(updateLastCommand, 5000);
+updateLastCommand();
 </script>
+
 
 
 </body>
 </html>
+
 
 
 
