@@ -1,16 +1,10 @@
 <?php
-/**
- * KNN Decision Algorithm for IoT Greenhouse
- *
- * Uses a simple KNN-based logic to automatically decide actuator states
- * (heater, fan, pump, light) based on temperature, humidity, soil moisture, and light intensity.
- */
+// ======================================================
+// KNN Decision Logic - tuned for Philippine conditions
+// ======================================================
 
-function knn_decision($temp, $humidity, $soil, $light)
-{
-    // -------------------------------------------
-    // Define training dataset (example patterns)
-    // -------------------------------------------
+function knn_decision($temp, $hum, $soil, $light) {
+    // ✅ Example dataset — simplified but balanced for PH climate
     $training_data = [
         // temp, humidity, soil_moisture, light_intensity, heater, fan, pump, light_act
         [24, 85, 60, 2500, 1, 0, 0, 0], // cold morning, turn heater on
@@ -25,75 +19,51 @@ function knn_decision($temp, $humidity, $soil, $light)
         [26, 90, 70, 1000, 0, 0, 0, 1], // cloudy, light on
     ];
 
-    $k = 3; // number of nearest neighbors to consider
+    // K value
+    $k = 3;
 
-    // -------------------------------------------
-    // Compute distance from current reading to each training example
-    // -------------------------------------------
+    // Compute Euclidean distances
     $distances = [];
-    foreach ($training as $sample) {
-        $d = sqrt(
-            pow($temp - $sample[0], 2) +
-            pow($humidity - $sample[1], 2) +
-            pow($soil - $sample[2], 2) +
-            pow($light - $sample[3], 2)
+    foreach ($training_data as $row) {
+        $distance = sqrt(
+            pow($temp - $row[0], 2) +
+            pow($hum - $row[1], 2) +
+            pow($soil - $row[2], 2) +
+            pow(($light - $row[3]) / 1000, 2) // normalize light effect
         );
-        $distances[] = ['distance' => $d, 'heater' => $sample[4], 'fan' => $sample[5], 'pump' => $sample[6], 'light_act' => $sample[7]];
+        $distances[] = ['distance' => $distance, 'values' => $row];
     }
 
-    // Sort by ascending distance
-    usort($distances, function($a, $b) {
-        return $a['distance'] <=> $b['distance'];
-    });
+    // Sort by distance ascending
+    usort($distances, fn($a, $b) => $a['distance'] <=> $b['distance']);
 
-    // -------------------------------------------
-    // Select top K neighbors
-    // -------------------------------------------
-    $nearest = array_slice($distances, 0, $k);
+    // Pick K nearest neighbors
+    $neighbors = array_slice($distances, 0, $k);
 
-    // -------------------------------------------
-    // Compute majority decision
-    // -------------------------------------------
+    // Majority voting
     $sum = ['heater' => 0, 'fan' => 0, 'pump' => 0, 'light_act' => 0];
-    foreach ($nearest as $n) {
-        $sum['heater'] += $n['heater'];
-        $sum['fan'] += $n['fan'];
-        $sum['pump'] += $n['pump'];
-        $sum['light_act'] += $n['light_act'];
+    foreach ($neighbors as $n) {
+        $v = $n['values'];
+        $sum['heater'] += $v[4];
+        $sum['fan'] += $v[5];
+        $sum['pump'] += $v[6];
+        $sum['light_act'] += $v[7];
     }
 
-    // Round decision (majority)
-    $decision = [
-        'heater' => $sum['heater'] >= ceil($k / 2) ? 1 : 0,
-        'fan' => $sum['fan'] >= ceil($k / 2) ? 1 : 0,
-        'pump' => $sum['pump'] >= ceil($k / 2) ? 1 : 0,
-        'light_act' => $sum['light_act'] >= ceil($k / 2) ? 1 : 0
+    // Decision (majority rule)
+    $cmd = [
+        'heater' => $sum['heater'] >= ($k / 2) ? 1 : 0,
+        'fan' => $sum['fan'] >= ($k / 2) ? 1 : 0,
+        'pump' => $sum['pump'] >= ($k / 2) ? 1 : 0,
+        'light_act' => $sum['light_act'] >= ($k / 2) ? 1 : 0
     ];
 
-    // -------------------------------------------
-    // Optional fine-tuning thresholds (override)
-    // -------------------------------------------
-    // Heater logic
-    if ($temp < 22) $decision['heater'] = 1;
-    if ($temp > 28) $decision['heater'] = 0;
+    // ✅ Additional manual fine-tuning for realism
+    if ($temp < 26) $cmd['heater'] = 1;
+    if ($temp > 34) $cmd['fan'] = 1;
+    if ($soil < 40) $cmd['pump'] = 1;
+    if ($light < 1500) $cmd['light_act'] = 1;
 
-    // Fan logic
-    if ($temp > 30 || $humidity > 75) $decision['fan'] = 1;
-    if ($temp < 25 && $humidity < 60) $decision['fan'] = 0;
-
-    // Pump logic
-    if ($soil < 40) $decision['pump'] = 1;
-    if ($soil > 60) $decision['pump'] = 0;
-
-    // Light logic
-    if ($light < 800) $decision['light_act'] = 1;
-    if ($light > 1800) $decision['light_act'] = 0;
-
-    // -------------------------------------------
-    // Return final decision
-    // -------------------------------------------
-    return $decision;
+    return $cmd;
 }
 ?>
-
-
