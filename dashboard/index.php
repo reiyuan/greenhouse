@@ -432,6 +432,72 @@ async function updateChart() {
   }
 }
 
+const MODE_CHECK_INTERVAL = 5000;
+let overrideEndTime = null;
+
+// Mode display check
+async function checkMode() {
+  const res = await fetch('../api/get_command.php');
+  const cmd = await res.json();
+
+  if (cmd.source === 'manual') {
+    const createdAt = new Date(cmd.created_at);
+    const expires = new Date(createdAt.getTime() + 5 * 60000);
+    const now = new Date();
+    const diffMs = expires - now;
+
+    if (diffMs > 0) {
+      const mins = Math.floor(diffMs / 60000);
+      const secs = Math.floor((diffMs % 60000) / 1000);
+      document.getElementById('modeDisplay').innerHTML =
+        `<span class="override-active">Manual Override Active</span> (expires in ${mins}:${secs.toString().padStart(2, '0')})`;
+      document.getElementById('cancelOverrideBtn').classList.remove('d-none');
+      overrideEndTime = expires;
+    } else {
+      document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
+      document.getElementById('cancelOverrideBtn').classList.add('d-none');
+    }
+  } else {
+    document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
+    document.getElementById('cancelOverrideBtn').classList.add('d-none');
+  }
+}
+setInterval(checkMode, MODE_CHECK_INTERVAL);
+checkMode();
+
+// Manual command sender
+async function sendManual() {
+  const data = {
+    heater: document.getElementById('heater').checked ? 1 : 0,
+    fan: document.getElementById('fan').checked ? 1 : 0,
+    pump: document.getElementById('pump').checked ? 1 : 0,
+    light_act: document.getElementById('light_act').checked ? 1 : 0
+  };
+  const res = await fetch('../api/manual_command.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  const json = await res.json();
+  if (json.status === 'ok') {
+    alert('Manual override sent!');
+    checkMode();
+  }
+}
+
+// Cancel override
+async function cancelOverride() {
+  const res = await fetch('../api/save_reading.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({"temp":25,"humidity":50,"soil_moisture":50,"light_intensity":500})
+  });
+  await res.json();
+  alert('Manual override cancelled. System back to KNN mode.');
+  checkMode();
+}
+    
+
 // === 4️⃣ Run All Periodically ===
 function refreshAll() {
   updateLastCommand();
@@ -448,6 +514,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
