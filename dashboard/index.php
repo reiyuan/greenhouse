@@ -338,265 +338,117 @@ foreach (array_reverse($readings) as $r) {
 
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 
-<script>
-const MODE_CHECK_INTERVAL = 5000;
-let overrideEndTime = null;
-
-// Mode display check
-async function checkMode() {
-  const res = await fetch('../api/get_command.php');
-  const cmd = await res.json();
-
-  if (cmd.source === 'manual') {
-    const createdAt = new Date(cmd.created_at);
-    const expires = new Date(createdAt.getTime() + 5 * 60000);
-    const now = new Date();
-    const diffMs = expires - now;
-
-    if (diffMs > 0) {
-      const mins = Math.floor(diffMs / 60000);
-      const secs = Math.floor((diffMs % 60000) / 1000);
-      document.getElementById('modeDisplay').innerHTML =
-        `<span class="override-active">Manual Override Active</span> (expires in ${mins}:${secs.toString().padStart(2, '0')})`;
-      document.getElementById('cancelOverrideBtn').classList.remove('d-none');
-      overrideEndTime = expires;
-    } else {
-      document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
-      document.getElementById('cancelOverrideBtn').classList.add('d-none');
-    }
-  } else {
-    document.getElementById('modeDisplay').innerHTML = `<span class="auto-mode">Auto Mode (KNN)</span>`;
-    document.getElementById('cancelOverrideBtn').classList.add('d-none');
-  }
-}
-setInterval(checkMode, MODE_CHECK_INTERVAL);
-checkMode();
-
-// Manual command sender
-async function sendManual() {
-  const data = {
-    heater: document.getElementById('heater').checked ? 1 : 0,
-    fan: document.getElementById('fan').checked ? 1 : 0,
-    pump: document.getElementById('pump').checked ? 1 : 0,
-    light_act: document.getElementById('light_act').checked ? 1 : 0
-  };
-  const res = await fetch('../api/manual_command.php', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(data)
-  });
-  const json = await res.json();
-  if (json.status === 'ok') {
-    alert('Manual override sent!');
-    checkMode();
-  }
-}
-
-// Cancel override
-async function cancelOverride() {
-  const res = await fetch('../api/save_reading.php', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({"temp":25,"humidity":50,"soil_moisture":50,"light_intensity":500})
-  });
-  await res.json();
-  alert('Manual override cancelled. System back to KNN mode.');
-  checkMode();
-}
-
-// ==================== LIVE CHARTS ====================
-
-// Chart setup
-const tempCtx = document.getElementById('tempHumChart').getContext('2d');
-const soilCtx = document.getElementById('soilLightChart').getContext('2d');
-
-let tempHumChart = new Chart(tempCtx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'Temperature (°C)', data: [], borderColor: 'red', fill: false },
-      { label: 'Humidity (%)', data: [], borderColor: 'blue', fill: false }
-    ]
-  },
-  options: { responsive: true, animation: false }
-});
-
-let soilLightChart = new Chart(soilCtx, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'Soil Moisture (%)', data: [], borderColor: 'green', fill: false },
-      { label: 'Light Intensity (lux)', data: [], borderColor: 'orange', fill: false }
-    ]
-  },
-  options: { responsive: true, animation: false }
-});
-
-// Fetch and update chart data
-async function updateCharts() {
-  const res = await fetch('../api/latest_readings.php');
-  const data = await res.json();
-
-  const labels = data.map(d => d.created_at.substring(11, 16));
-  const temps = data.map(d => parseFloat(d.temp));
-  const hums = data.map(d => parseFloat(d.humidity));
-  const soils = data.map(d => parseFloat(d.soil_moisture));
-  const lights = data.map(d => parseFloat(d.light_intensity));
-
-  tempHumChart.data.labels = labels;
-  tempHumChart.data.datasets[0].data = temps;
-  tempHumChart.data.datasets[1].data = hums;
-  tempHumChart.update();
-
-  soilLightChart.data.labels = labels;
-  soilLightChart.data.datasets[0].data = soils;
-  soilLightChart.data.datasets[1].data = lights;
-  soilLightChart.update();
-}
-
-updateCharts();
-setInterval(updateCharts, 10000); // every 10 seconds
-</script>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<style>
+.flash { animation: flashGreen 0.4s ease-in-out; }
+@keyframes flashGreen { from { background-color: #d4edda; } to { background-color: transparent; } }
+</style>
 
 <script>
-// ==================== LIVE SENSOR CHART ====================
+const REFRESH_INTERVAL = 5000;
 
-// Create Chart.js line chart
+// === 1️⃣ Update Last Command ===
+async function updateLastCommand() {
+  try {
+    const res = await fetch('../api/latest_command.php?nocache=' + Date.now());
+    const data = await res.json();
+
+    if (!data || !data.id) return;
+
+    const html = `
+      <p><strong>ID:</strong> ${data.id} |
+      <strong>Source:</strong> ${data.source} |
+      <strong>Time:</strong> ${data.created_at}</p>
+      <ul>
+        <li>Heater: ${data.heater == 1 ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Fan: ${data.fan == 1 ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Pump: ${data.pump == 1 ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+        <li>Light: ${data.light_act == 1 ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
+      </ul>
+    `;
+    document.querySelector('.card-success .card-body').innerHTML = html;
+  } catch (err) {
+    console.error("Error fetching last command:", err);
+  }
+}
+
+// === 2️⃣ Update Sensor Summary Cards ===
+async function updateSensorCards() {
+  try {
+    const res = await fetch('../api/latest_reading.php?nocache=' + Date.now());
+    const data = await res.json();
+
+    if (!data || !data.id) return;
+
+    document.getElementById('tempVal').innerHTML = data.temp + ' °C';
+    document.getElementById('humVal').innerHTML = data.humidity + ' %';
+    document.getElementById('soilVal').innerHTML = data.soil_moisture + ' %';
+    document.getElementById('lightVal').innerHTML = data.light_intensity;
+
+    ['tempVal', 'humVal', 'soilVal', 'lightVal'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    });
+  } catch (err) {
+    console.error('Error updating sensor cards:', err);
+  }
+}
+
+// === 3️⃣ Live Sensor Chart ===
 const ctx = document.getElementById('sensorChart').getContext('2d');
 let sensorChart = new Chart(ctx, {
   type: 'line',
   data: {
     labels: [],
     datasets: [
-      { label: 'Temperature (°C)', data: [], borderColor: 'red', fill: false, tension: 0.3 },
-      { label: 'Humidity (%)', data: [], borderColor: 'blue', fill: false, tension: 0.3 },
-      { label: 'Soil Moisture (%)', data: [], borderColor: 'green', fill: false, tension: 0.3 },
-      { label: 'Light Intensity', data: [], borderColor: 'orange', fill: false, tension: 0.3 }
+      { label: 'Temp (°C)', data: [], borderColor: 'red', fill: false },
+      { label: 'Humidity (%)', data: [], borderColor: 'blue', fill: false },
+      { label: 'Soil Moisture (%)', data: [], borderColor: 'green', fill: false },
+      { label: 'Light', data: [], borderColor: 'orange', fill: false }
     ]
   },
   options: {
     responsive: true,
-    animation: { duration: 800, easing: 'easeOutQuart' },
-    plugins: {
-      legend: { position: 'top' },
-      title: { display: true, text: 'Live Sensor Trends (auto-updating)' }
-    },
-    scales: {
-      x: { title: { display: true, text: 'Time' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Value' } }
-    }
+    animation: false,
+    scales: { y: { beginAtZero: true } }
   }
 });
 
-// Fetch and update data every few seconds
-async function updateSensorChart() {
+async function updateChart() {
   try {
-    const res = await fetch('../api/latest_readings.php?nocache=' + new Date().getTime());
+    const res = await fetch('../api/latest_readings.php?nocache=' + Date.now());
     const data = await res.json();
-
-    if (!Array.isArray(data) || data.length === 0) return;
 
     const labels = data.map(d => d.created_at.substring(11, 16));
-    const temps = data.map(d => parseFloat(d.temp));
-    const hums = data.map(d => parseFloat(d.humidity));
-    const soils = data.map(d => parseFloat(d.soil_moisture));
-    const lights = data.map(d => parseFloat(d.light_intensity));
-
     sensorChart.data.labels = labels;
-    sensorChart.data.datasets[0].data = temps;
-    sensorChart.data.datasets[1].data = hums;
-    sensorChart.data.datasets[2].data = soils;
-    sensorChart.data.datasets[3].data = lights;
+    sensorChart.data.datasets[0].data = data.map(d => parseFloat(d.temp));
+    sensorChart.data.datasets[1].data = data.map(d => parseFloat(d.humidity));
+    sensorChart.data.datasets[2].data = data.map(d => parseFloat(d.soil_moisture));
+    sensorChart.data.datasets[3].data = data.map(d => parseFloat(d.light_intensity));
     sensorChart.update();
-  } catch (error) {
-    console.error('Chart update failed:', error);
-  }
-}
-
-// Initial chart load + refresh every 5 seconds
-updateSensorChart();
-setInterval(updateSensorChart, 5000);
-</script>
-
-<script>
-async function updateLastCommand() {
-  try {
-    const res = await fetch('../api/latest_command.php?nocache=' + new Date().getTime());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const cmd = await res.json();
-
-    if (!cmd || cmd.error) {
-      document.getElementById('lastCommandBody').innerHTML = "<p>No commands yet.</p>";
-      return;
-    }
-
-    let html = `
-      <p><strong>ID:</strong> ${cmd.id} | 
-         <strong>Source:</strong> ${cmd.source} | 
-         <strong>Time:</strong> ${cmd.created_at}</p>
-      <ul>
-        <li>Heater: ${cmd.heater == 1 ? '<span class="badge badge-danger">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Fan: ${cmd.fan == 1 ? '<span class="badge badge-info">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Pump: ${cmd.pump == 1 ? '<span class="badge badge-primary">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-        <li>Light: ${cmd.light_act == 1 ? '<span class="badge badge-warning">ON</span>' : '<span class="badge badge-secondary">OFF</span>'}</li>
-      </ul>
-    `;
-    const el = document.getElementById('lastCommandBody');
-    el.innerHTML = html;
-    el.classList.add('flash');
-    setTimeout(() => el.classList.remove('flash'), 400);
   } catch (err) {
-    console.error('Error updating last command:', err);
+    console.error('Chart update error:', err);
   }
 }
 
-setInterval(updateLastCommand, 5000);
-updateLastCommand();
-</script>
-
-    <script>
-async function updateSensorCards() {
-  try {
-    const res = await fetch('../api/latest_reading.php?nocache=' + new Date().getTime());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-
-    if (data.error) {
-      console.warn('No readings yet.');
-      return;
-    }
-
-    // Update card values
-    document.getElementById('tempVal').innerHTML = data.temp + ' °C';
-    document.getElementById('humVal').innerHTML = data.humidity + ' %';
-    document.getElementById('soilVal').innerHTML = data.soil_moisture + ' %';
-    document.getElementById('lightVal').innerHTML = data.light_intensity;
-
-    // Flash animation feedback
-    ['tempVal', 'humVal', 'soilVal', 'lightVal'].forEach(id => {
-      const el = document.getElementById(id);
-      el.classList.add('flash');
-      setTimeout(() => el.classList.remove('flash'), 400);
-    });
-
-  } catch (err) {
-    console.error('Error updating sensor cards:', err);
-  }
+// === 4️⃣ Run All Periodically ===
+function refreshAll() {
+  updateLastCommand();
+  updateSensorCards();
+  updateChart();
 }
 
-// Update every 5 seconds
-setInterval(updateSensorCards, 5000);
-updateSensorCards();
+refreshAll();
+setInterval(refreshAll, REFRESH_INTERVAL);
 </script>
+
 
 
 
 </body>
 </html>
+
 
 
 
