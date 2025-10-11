@@ -7,15 +7,7 @@ try {
     $cmd = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($cmd) {
-        echo json_encode([
-            "id" => (int)$cmd['id'],
-            "heater" => (int)$cmd['heater'],
-            "fan" => (int)$cmd['fan'],
-            "pump" => (int)$cmd['pump'],
-            "light_act" => (int)$cmd['light_act'],
-            "source" => $cmd['source'],
-            "created_at" => $cmd['created_at']
-        ]);
+        echo json_encode($cmd);
     } else {
         echo json_encode(["error" => "No commands found"]);
     }
