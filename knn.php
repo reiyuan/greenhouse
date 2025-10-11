@@ -14,15 +14,15 @@ function knn_decision($temp, $humidity, $soil, $light)
     $training = [
         // temp, humidity, soil, light, heater, fan, pump, light_act
         [20, 80, 60, 1000, 1, 0, 0, 1], // cool & humid — heater on, light on
-        [35, 40, 40, 2000, 0, 1, 1, 0], // hot & dry — fan and pump on
+        [40, 40, 40, 2000, 0, 1, 1, 0], // hot & dry — fan and pump on
         [28, 60, 70, 1500, 0, 0, 0, 0], // moderate
         [18, 90, 80, 800, 1, 0, 0, 1],  // cold and humid — heater and light
-        [40, 30, 20, 2500, 0, 1, 1, 0], // very hot & dry
+        [45, 30, 20, 2500, 0, 1, 1, 0], // very hot & dry
         [25, 50, 40, 300, 0, 0, 1, 1],  // low light — pump + light on
-        [30, 70, 60, 1000, 0, 1, 0, 1], // hot + humid
+        [35, 70, 60, 1000, 0, 1, 0, 1], // hot + humid
         [22, 60, 30, 400, 1, 0, 1, 1],  // cool + dry
         [27, 55, 50, 1200, 0, 0, 0, 1], // balanced
-        [33, 45, 45, 1800, 0, 1, 1, 0]  // slightly hot
+        [38, 45, 45, 1800, 0, 1, 1, 0]  // slightly hot
     ];
 
     $k = 3; // number of nearest neighbors to consider
@@ -95,3 +95,4 @@ function knn_decision($temp, $humidity, $soil, $light)
     return $decision;
 }
 ?>
+
