@@ -160,7 +160,7 @@ foreach (array_reverse($readings) as $r) {
               <span class="info-box-icon"><i class="fas fa-thermometer-half"></i></span>
               <div class="info-box-content">
                 <span class="info-box-text">Temperature</span>
-                <span class="info-box-number"><?= $latest ? $latest['temp']." °C" : "N/A" ?></span>
+                <span class="info-box-number" id="tempVal"><?= $latest ? $latest['temp']." °C" : "N/A" ?></span>
               </div>
             </div>
           </div>
@@ -169,7 +169,7 @@ foreach (array_reverse($readings) as $r) {
               <span class="info-box-icon"><i class="fas fa-tint"></i></span>
               <div class="info-box-content">
                 <span class="info-box-text">Humidity</span>
-                <span class="info-box-number"><?= $latest ? $latest['humidity']." %" : "N/A" ?></span>
+                <span class="info-box-number" id="humVal"><?= $latest ? $latest['humidity']." %" : "N/A" ?></span>
               </div>
             </div>
           </div>
@@ -178,7 +178,7 @@ foreach (array_reverse($readings) as $r) {
               <span class="info-box-icon"><i class="fas fa-seedling"></i></span>
               <div class="info-box-content">
                 <span class="info-box-text">Soil Moisture</span>
-                <span class="info-box-number"><?= $latest ? $latest['soil_moisture']." %" : "N/A" ?></span>
+                <span class="info-box-number" id="soilVal"><?= $latest ? $latest['soil_moisture']." %" : "N/A" ?></span>
               </div>
             </div>
           </div>
@@ -187,7 +187,7 @@ foreach (array_reverse($readings) as $r) {
               <span class="info-box-icon"><i class="fas fa-sun"></i></span>
               <div class="info-box-content">
                 <span class="info-box-text">Light</span>
-                <span class="info-box-number"><?= $latest ? $latest['light_intensity'] : "N/A" ?></span>
+                <span class="info-box-number" id="lightVal"><?= $latest ? $latest['light_intensity'] : "N/A" ?></span>
               </div>
             </div>
           </div>
@@ -558,10 +558,46 @@ setInterval(updateLastCommand, 5000);
 updateLastCommand();
 </script>
 
+    <script>
+async function updateSensorCards() {
+  try {
+    const res = await fetch('../api/latest_reading.php?nocache=' + new Date().getTime());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (data.error) {
+      console.warn('No readings yet.');
+      return;
+    }
+
+    // Update card values
+    document.getElementById('tempVal').innerHTML = data.temp + ' °C';
+    document.getElementById('humVal').innerHTML = data.humidity + ' %';
+    document.getElementById('soilVal').innerHTML = data.soil_moisture + ' %';
+    document.getElementById('lightVal').innerHTML = data.light_intensity;
+
+    // Flash animation feedback
+    ['tempVal', 'humVal', 'soilVal', 'lightVal'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    });
+
+  } catch (err) {
+    console.error('Error updating sensor cards:', err);
+  }
+}
+
+// Update every 5 seconds
+setInterval(updateSensorCards, 5000);
+updateSensorCards();
+</script>
+
 
 
 </body>
 </html>
+
 
 
 
