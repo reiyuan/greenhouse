@@ -11,18 +11,18 @@ function knn_decision($temp, $humidity, $soil, $light)
     // -------------------------------------------
     // Define training dataset (example patterns)
     // -------------------------------------------
-    $training = [
-        // temp, humidity, soil, light, heater, fan, pump, light_act
-        [20, 80, 60, 1000, 1, 0, 0, 1], // cool & humid — heater on, light on
-        [40, 40, 40, 2000, 0, 1, 1, 0], // hot & dry — fan and pump on
-        [28, 60, 70, 1500, 0, 0, 0, 0], // moderate
-        [18, 90, 80, 800, 1, 0, 0, 1],  // cold and humid — heater and light
-        [45, 30, 20, 2500, 0, 1, 1, 0], // very hot & dry
-        [25, 50, 40, 300, 0, 0, 1, 1],  // low light — pump + light on
-        [35, 70, 60, 1000, 0, 1, 0, 1], // hot + humid
-        [22, 60, 30, 400, 1, 0, 1, 1],  // cool + dry
-        [27, 55, 50, 1200, 0, 0, 0, 1], // balanced
-        [38, 45, 45, 1800, 0, 1, 1, 0]  // slightly hot
+    $training_data = [
+        // temp, humidity, soil_moisture, light_intensity, heater, fan, pump, light_act
+        [24, 85, 60, 2500, 1, 0, 0, 0], // cold morning, turn heater on
+        [27, 80, 70, 3000, 0, 0, 0, 0], // normal mild
+        [30, 75, 60, 3500, 0, 0, 0, 0], // ideal
+        [33, 70, 50, 4000, 0, 1, 0, 0], // warm afternoon, fan on
+        [36, 65, 45, 5000, 0, 1, 0, 0], // very hot, fan active
+        [29, 85, 35, 2500, 0, 0, 1, 0], // soil dry, pump on
+        [32, 80, 38, 2800, 0, 0, 1, 0], // soil still dry, pump active
+        [28, 88, 65, 800, 0, 0, 0, 1],  // low light, light on
+        [31, 60, 55, 1500, 0, 0, 0, 0], // sunny normal
+        [26, 90, 70, 1000, 0, 0, 0, 1], // cloudy, light on
     ];
 
     $k = 3; // number of nearest neighbors to consider
@@ -95,4 +95,5 @@ function knn_decision($temp, $humidity, $soil, $light)
     return $decision;
 }
 ?>
+
 
