@@ -79,6 +79,19 @@ foreach (array_reverse($readings) as $r) {
   <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+
+    <style>
+body {
+  background: url('background.jpg') no-repeat center center fixed;
+  background-size: cover;
+}
+.content-wrapper {
+  background: rgba(255, 255, 255, 0.85); /* white overlay for readability */
+  backdrop-filter: blur(4px); /* smooth blur effect */
+}
+</style>
+
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -515,6 +528,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
