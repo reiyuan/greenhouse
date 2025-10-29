@@ -160,7 +160,7 @@ foreach (array_reverse($readings) as $r) {
   <!-- Sidebar -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="index.php" class="brand-link">
-  <img src="orglogo.jpg" class="brand-image img-circle elevation-3" style="opacity:.9; background-color:white;">
+  <img src="orglogo.jpg" style="width: 90px; height: 90px; object-fit: contain; border-radius: 50%; box-shadow: 0 0 10px rgba(255,255,255,0.4);">
   <span class="brand-text font-weight-light">Greenhouse</span>
 </a>
 
@@ -171,13 +171,12 @@ foreach (array_reverse($readings) as $r) {
             <a href="index.php" class="nav-link active">
               <i class="nav-icon fas fa-tachometer-alt"></i>
               <p>Dashboard</p>
-
-                <div class="mt-2">
+            </a>
+               <div class="mt-2">
     <img src="slsulogo.png" alt="Greenhouse Logo" 
          class="img-fluid" 
          style="max-width: 120px; border-radius: 8px; opacity: 0.95;">
   </div>
-            </a>
           </li>
         </ul>
       </nav>
@@ -556,6 +555,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
