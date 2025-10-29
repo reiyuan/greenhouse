@@ -80,17 +80,39 @@ foreach (array_reverse($readings) as $r) {
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
-
-    <style>
-body {
-  background: url('background.jpg') no-repeat center center fixed;
+<style>
+/* 🌿 Sidebar background image */
+.main-sidebar {
+  background: url('background.jpg') no-repeat center center;
   background-size: cover;
+  position: relative;
+  z-index: 1;
 }
-.content-wrapper {
-  background: rgba(255, 255, 255, 0.85); /* white overlay for readability */
-  backdrop-filter: blur(4px); /* smooth blur effect */
+
+/* Optional dark overlay for better contrast */
+.main-sidebar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6); /* darken for readability */
+  z-index: -1;
+}
+
+/* Ensure sidebar text/icons remain visible */
+.sidebar .nav-link,
+.brand-text,
+.nav-icon,
+.brand-link {
+  color: #fff !important;
+}
+.sidebar .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.2) !important;
 }
 </style>
+
 
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
@@ -528,6 +550,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
