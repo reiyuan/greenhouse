@@ -125,9 +125,10 @@ foreach (array_reverse($readings) as $r) {
   <!-- Sidebar -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="index.php" class="brand-link">
-      <i class="fas fa-seedling brand-image img-circle elevation-3"></i>
-      <span class="brand-text font-weight-light">Greenhouse</span>
-    </a>
+  <img src="logo.png" class="brand-image img-circle elevation-3" style="opacity:.9; background-color:white;">
+  <span class="brand-text font-weight-light">Greenhouse</span>
+</a>
+
     <div class="sidebar">
       <nav class="mt-2">
         <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
@@ -514,6 +515,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
