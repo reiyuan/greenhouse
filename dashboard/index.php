@@ -171,6 +171,12 @@ foreach (array_reverse($readings) as $r) {
             <a href="index.php" class="nav-link active">
               <i class="nav-icon fas fa-tachometer-alt"></i>
               <p>Dashboard</p>
+
+                <div class="mt-2">
+    <img src="slsulogo.png" alt="Greenhouse Logo" 
+         class="img-fluid" 
+         style="max-width: 120px; border-radius: 8px; opacity: 0.95;">
+  </div>
             </a>
           </li>
         </ul>
@@ -550,6 +556,7 @@ setInterval(refreshAll, REFRESH_INTERVAL);
 
 </body>
 </html>
+
 
 
 
