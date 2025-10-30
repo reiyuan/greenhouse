@@ -1,41 +1,61 @@
 <?php
+header("Content-Type: application/json");
 require_once __DIR__ . '/../config.php';
-header('Content-Type: application/json');
 
-// Get raw JSON input
-$input = file_get_contents("php://input");
-file_put_contents(__DIR__ . '/../debug_input.log', date('Y-m-d H:i:s') . " | " . $input . "\n", FILE_APPEND);
+// --- Use Philippine Standard Time ---
+date_default_timezone_set('Asia/Manila');
 
+// --- Read JSON from ESP32 ---
+$input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
-if (!$data) {
+// --- Backward-compatibility (form POST fallback) ---
+if (!$data && !empty($_POST)) {
+    $data = $_POST;
+}
+
+// --- Validate data ---
+if (
+    !isset($data['temp']) ||
+    !isset($data['humidity']) ||
+    !isset($data['soil_moisture']) ||
+    !isset($data['light_intensity'])
+) {
     http_response_code(400);
-    echo json_encode(["error" => "No input", "raw" => $input]);
+    echo json_encode(["status" => "error", "message" => "Invalid data structure"]);
     exit;
 }
 
-$temp = $data['temp'] ?? null;
-$hum = $data['humidity'] ?? null;
-$soil = $data['soil_moisture'] ?? null;
-$light = $data['light_intensity'] ?? null;
+$temp = floatval($data['temp']);
+$humidity = floatval($data['humidity']);
+$soil = floatval($data['soil_moisture']);
+$light = floatval($data['light_intensity']);
 
-if ($temp === null || $hum === null || $soil === null || $light === null) {
-    echo json_encode(["error" => "Incomplete data", "data" => $data]);
-    exit;
+// --- Determine timestamp ---
+$timestamp = isset($data['timestamp']) && !empty($data['timestamp'])
+    ? date('Y-m-d H:i:s', strtotime($data['timestamp']))
+    : date('Y-m-d H:i:s'); // default to current Philippine time
+
+// --- Insert into database ---
+try {
+    $stmt = $pdo->prepare("
+        INSERT INTO sensor_readings (temp, humidity, soil_moisture, light_intensity, created_at)
+        VALUES (:temp, :humidity, :soil, :light, :created_at)
+    ");
+    $stmt->execute([
+        ':temp' => $temp,
+        ':humidity' => $humidity,
+        ':soil' => $soil,
+        ':light' => $light,
+        ':created_at' => $timestamp
+    ]);
+
+    echo json_encode([
+        "status" => "ok",
+        "message" => "Reading saved",
+        "timestamp" => $timestamp
+    ]);
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
 }
-
-// Save sensor reading
-$stmt = $pdo->prepare("INSERT INTO sensor_readings (temp, humidity, soil_moisture, light_intensity) VALUES (?,?,?,?)");
-$stmt->execute([$temp, $hum, $soil, $light]);
-
-// Run KNN decision
-require_once __DIR__ . '/../knn.php';
-$cmd = knn_decision($temp, $hum, $soil, $light);
-
-// Save command
-$stmt = $pdo->prepare("INSERT INTO commands (heater, fan, pump, light_act, source) VALUES (?,?,?,?,?)");
-$stmt->execute([$cmd['heater'], $cmd['fan'], $cmd['pump'], $cmd['light_act'], "knn"]);
-
-// Respond to ESP32
-echo json_encode(["status" => "ok", "cmd" => $cmd]);
-?>
