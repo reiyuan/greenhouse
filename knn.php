@@ -1,69 +1,87 @@
 <?php
-// ======================================================
-// KNN Decision Logic - tuned for Philippine conditions
-// ======================================================
+require_once '../config.php';
 
-function knn_decision($temp, $hum, $soil, $light) {
-    // ✅ Example dataset — simplified but balanced for PH climate
-    $training_data = [
-        // temp, humidity, soil_moisture, light_intensity, heater, fan, pump, light_act
-        [24, 85, 60, 2500, 1, 0, 0, 0], // cold morning, turn heater on
-        [27, 80, 70, 3000, 0, 0, 0, 0], // normal mild
-        [30, 75, 60, 3500, 0, 0, 0, 0], // ideal
-        [33, 70, 50, 4000, 0, 1, 0, 0], // warm afternoon, fan on
-        [36, 65, 45, 5000, 0, 1, 0, 0], // very hot, fan active
-        [29, 85, 35, 2500, 0, 0, 1, 0], // soil dry, pump on
-        [32, 80, 38, 2800, 0, 0, 1, 0], // soil still dry, pump active
-        [28, 88, 65, 800, 0, 0, 0, 1],  // low light, light on
-        [31, 60, 55, 1500, 0, 0, 0, 0], // sunny normal
-        [26, 90, 70, 1000, 0, 0, 0, 1], // cloudy, light on
-    ];
-
-    // K value
-    $k = 3;
-
-    // Compute Euclidean distances
-    $distances = [];
-    foreach ($training_data as $row) {
-        $distance = sqrt(
-            pow($temp - $row[0], 2) +
-            pow($hum - $row[1], 2) +
-            pow($soil - $row[2], 2) +
-            pow(($light - $row[3]) / 1000, 2) // normalize light effect
-        );
-        $distances[] = ['distance' => $distance, 'values' => $row];
-    }
-
-    // Sort by distance ascending
-    usort($distances, fn($a, $b) => $a['distance'] <=> $b['distance']);
-
-    // Pick K nearest neighbors
-    $neighbors = array_slice($distances, 0, $k);
-
-    // Majority voting
-    $sum = ['heater' => 0, 'fan' => 0, 'pump' => 0, 'light_act' => 0];
-    foreach ($neighbors as $n) {
-        $v = $n['values'];
-        $sum['heater'] += $v[4];
-        $sum['fan'] += $v[5];
-        $sum['pump'] += $v[6];
-        $sum['light_act'] += $v[7];
-    }
-
-    // Decision (majority rule)
-    $cmd = [
-        'heater' => $sum['heater'] >= ($k / 2) ? 1 : 0,
-        'fan' => $sum['fan'] >= ($k / 2) ? 1 : 0,
-        'pump' => $sum['pump'] >= ($k / 2) ? 1 : 0,
-        'light_act' => $sum['light_act'] >= ($k / 2) ? 1 : 0
-    ];
-
-    // ✅ Additional manual fine-tuning for realism
-    if ($temp < 26) $cmd['heater'] = 1;
-    if ($temp > 34) $cmd['fan'] = 1;
-    if ($soil < 40) $cmd['pump'] = 1;
-    if ($light < 1500) $cmd['light_act'] = 1;
-
-    return $cmd;
+// Read JSON input
+$data = json_decode(file_get_contents("php://input"), true);
+if (!$data) {
+    echo json_encode(["error" => "No input data"]);
+    exit;
 }
+
+$temp = isset($data['temp']) ? floatval($data['temp']) : null;
+$humidity = isset($data['humidity']) ? floatval($data['humidity']) : null;
+$soil = isset($data['soil_moisture']) ? floatval($data['soil_moisture']) : null;
+$light = isset($data['light_intensity']) ? floatval($data['light_intensity']) : null;
+
+// Check valid input
+if (is_null($temp) || is_null($humidity) || is_null($soil) || is_null($light)) {
+    echo json_encode(["error" => "Invalid data"]);
+    exit;
+}
+
+// --- Fetch last command to preserve current states ---
+$lastCmd = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+
+// Default to previous states or OFF
+$heater = $lastCmd ? $lastCmd['heater'] : 0;
+$fan = $lastCmd ? $lastCmd['fan'] : 0;
+$pump = $lastCmd ? $lastCmd['pump'] : 0;
+$light_act = $lastCmd ? $lastCmd['light_act'] : 0;
+
+// ================== TUNED KNN LOGIC ==================
+// Philippine tropical greenhouse thresholds (typical):
+// Temperature: 27–35°C
+// Humidity: 60–90%
+// Soil Moisture: 40–70%
+// Light (BH1750 lux): 100–50,000 lux
+
+// --- Heater & Fan Control ---
+if ($temp < 27) {           // Too cold
+    $heater = 1;
+    $fan = 0;
+} elseif ($temp > 33) {     // Too hot
+    $heater = 0;
+    $fan = 1;
+} else {                    // Comfortable range
+    $heater = 0;
+    $fan = 0;
+}
+
+// --- Soil Moisture Control ---
+if ($soil < 40) {           // Dry
+    $pump = 1;
+} elseif ($soil > 70) {     // Wet
+    $pump = 0;
+}
+
+// --- Light Control (BH1750FVI) ---
+// Hysteresis prevents flicker
+if ($light < 150) {         // Dark (evening / cloudy)
+    $light_act = 1;         // Turn ON grow lights
+} elseif ($light > 500) {   // Bright enough (daytime)
+    $light_act = 0;         // Turn OFF lights
+}
+
+// =====================================================
+
+// Save decision to database
+$stmt = $pdo->prepare("INSERT INTO commands (heater, fan, pump, light_act, source) VALUES (?, ?, ?, ?, 'auto')");
+$stmt->execute([$heater, $fan, $pump, $light_act]);
+
+// Return JSON response for ESP32
+$response = [
+    "status" => "ok",
+    "temp" => $temp,
+    "humidity" => $humidity,
+    "soil_moisture" => $soil,
+    "light_intensity" => $light,
+    "heater" => $heater,
+    "fan" => $fan,
+    "pump" => $pump,
+    "light_act" => $light_act,
+    "source" => "auto"
+];
+
+header('Content-Type: application/json');
+echo json_encode($response, JSON_PRETTY_PRINT);
 ?>
