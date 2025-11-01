@@ -1,102 +1,56 @@
 <?php
-require_once __DIR__ . '/config.php';
+// ======================================================
+// KNN DECISION LOGIC — tuned for Philippine room environment
+// ======================================================
 
-// === CONFIG ===
-define('K', 3); // Number of neighbors
+// K nearest neighbors to consider
+$K = 3;
 
-// === TRAINING DATA ===
-// Each sample represents: [temperature, humidity, soil_moisture, light_intensity]
-// Label format: ['heater', 'fan', 'pump', 'light_act']
+// Indoor environment training dataset
 $training_data = [
-    // 🌤 Typical hot daytime (Philippines)
-    ["features" => [34, 60, 40, 30000], "label" => [0, 1, 0, 0]], // Fan ON (too hot)
-    ["features" => [33, 55, 50, 20000], "label" => [0, 1, 0, 0]], // Slightly hot
-    ["features" => [30, 70, 60, 10000], "label" => [0, 0, 0, 1]], // Moderate → Light ON
+    // ☀ Warm, bright day near window
+    ["features" => [27, 45, 50, 1500], "label" => [0, 1, 0, 0]], // Fan ON (warm)
+    ["features" => [25, 50, 55, 1000], "label" => [0, 0, 0, 0]], // Comfortable
+    ["features" => [24, 55, 60, 700],  "label" => [0, 0, 0, 0]], // Ideal condition
 
-    // 🌧 Cool & Humid (Rainy)
-    ["features" => [25, 90, 80, 5000], "label" => [1, 0, 0, 1]], // Heater + Light ON
-    ["features" => [26, 85, 75, 3000], "label" => [1, 0, 0, 1]], // Dim light, cold
+    // 🌙 Cool evening / night
+    ["features" => [18.5, 55, 60, 80],  "label" => [1, 0, 0, 1]], // Heater + Light ON
+    ["features" => [19.5, 60, 70, 40],  "label" => [1, 0, 0, 1]], // Cold + dark
 
-    // 🌞 Dry & Hot
-    ["features" => [35, 50, 20, 40000], "label" => [0, 1, 1, 0]], // Fan + Pump ON
-    ["features" => [32, 45, 30, 35000], "label" => [0, 1, 1, 0]], // Hot & Dry
+    // 🌱 Dry soil daytime
+    ["features" => [23, 40, 22, 900],  "label" => [0, 0, 1, 0]], // Pump ON (dry)
+    ["features" => [26, 38, 25, 1200], "label" => [0, 1, 1, 0]], // Hot & dry → Fan + Pump
 
-    // 🌅 Evening (cooler)
-    ["features" => [28, 65, 55, 2000], "label" => [0, 0, 0, 1]], // Light ON
-    ["features" => [27, 60, 70, 1000], "label" => [0, 0, 0, 1]], // Dim + Moist
+    // 💧 Humid + warm (ventilation)
+    ["features" => [28, 65, 50, 800],  "label" => [0, 1, 0, 0]], // Fan ON
 
-    // 🌙 Night (Cold)
-    ["features" => [24, 80, 60, 500], "label" => [1, 0, 0, 1]], // Heater + Light
-    ["features" => [23, 85, 65, 300], "label" => [1, 0, 0, 1]], // Night mode
+    // 🌑 Dim but warm → Light ON for plants
+    ["features" => [22, 48, 55, 120],  "label" => [0, 0, 0, 1]], // Light ON (dark)
+    ["features" => [23, 45, 65, 300],  "label" => [0, 0, 0, 0]], // Dim but acceptable
 
-    // 🌱 Dry soil, any temp
-    ["features" => [30, 60, 25, 10000], "label" => [0, 0, 1, 0]], // Pump ON
-    ["features" => [31, 55, 20, 12000], "label" => [0, 0, 1, 0]], // Very dry soil
+    // 🌞 Bright but cool
+    ["features" => [21, 40, 50, 2500], "label" => [0, 0, 0, 0]], // All OFF
 
-    // 🪴 Wet soil, bright light
-    ["features" => [29, 65, 80, 25000], "label" => [0, 0, 0, 0]], // Ideal → All OFF
+    // 🧱 Hot & dry edge case
+    ["features" => [28.5, 35, 18, 1400], "label" => [0, 1, 1, 0]], // Fan + Pump
+
+    // 🌧 Night, wet soil
+    ["features" => [20, 70, 78, 60],   "label" => [0, 0, 0, 1]], // Light ON only
 ];
 
-// === READ LATEST SENSOR READING ===
-$stmt = $pdo->query("SELECT temp, humidity, soil_moisture, light_intensity FROM sensor_readings ORDER BY id DESC LIMIT 1");
-$current = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$current) {
-    echo json_encode(["error" => "No sensor data found"]);
-    exit;
+// Normalize a data point for comparison
+function normalize($point) {
+    // Adjust normalization range to fit typical indoor (Philippine) conditions
+    $max = [ 'temp' => 40, 'humidity' => 100, 'soil' => 100, 'light' => 3000 ];
+    return [
+        $point[0] / $max['temp'],
+        $point[1] / $max['humidity'],
+        $point[2] / $max['soil'],
+        $point[3] / $max['light']
+    ];
 }
 
-$current_features = [
-    floatval($current['temp']),
-    floatval($current['humidity']),
-    floatval($current['soil_moisture']),
-    floatval($current['light_intensity'])
-];
-
-// === COMPUTE DISTANCES ===
-$distances = [];
-foreach ($training_data as $sample) {
-    $dist = euclidean_distance($sample['features'], $current_features);
-    $distances[] = ['distance' => $dist, 'label' => $sample['label']];
-}
-
-// Sort by distance
-usort($distances, function ($a, $b) {
-    return $a['distance'] <=> $b['distance'];
-});
-
-// Take top K neighbors
-$neighbors = array_slice($distances, 0, K);
-
-// === MAJORITY VOTE ===
-$votes = [0, 0, 0, 0];
-foreach ($neighbors as $n) {
-    for ($i = 0; $i < 4; $i++) {
-        $votes[$i] += $n['label'][$i];
-    }
-}
-
-// Convert to binary (if 2 out of 3 say ON → turn ON)
-$decision = array_map(function($v) {
-    return $v >= ceil(K / 2) ? 1 : 0;
-}, $votes);
-
-// === SAVE COMMAND ===
-$stmt = $pdo->prepare("INSERT INTO commands (heater, fan, pump, light_act, source, created_at) VALUES (?, ?, ?, ?, 'auto', NOW())");
-$stmt->execute([$decision[0], $decision[1], $decision[2], $decision[3]]);
-
-echo json_encode([
-    "status" => "ok",
-    "decision" => [
-        "heater" => $decision[0],
-        "fan" => $decision[1],
-        "pump" => $decision[2],
-        "light_act" => $decision[3]
-    ],
-    "current_reading" => $current
-]);
-
-// === FUNCTIONS ===
+// Compute Euclidean distance between normalized feature vectors
 function euclidean_distance($a, $b) {
     $sum = 0;
     for ($i = 0; $i < count($a); $i++) {
@@ -104,4 +58,46 @@ function euclidean_distance($a, $b) {
     }
     return sqrt($sum);
 }
+
+// KNN decision function
+function knn_decision($temp, $humidity, $soil, $light) {
+    global $training_data, $K;
+
+    // Normalize input
+    $input = normalize([$temp, $humidity, $soil, $light]);
+
+    // Calculate distances
+    $distances = [];
+    foreach ($training_data as $data) {
+        $train = normalize($data["features"]);
+        $dist = euclidean_distance($input, $train);
+        $distances[] = ["distance" => $dist, "label" => $data["label"]];
+    }
+
+    // Sort by distance
+    usort($distances, fn($a, $b) => $a["distance"] <=> $b["distance"]);
+
+    // Take K nearest neighbors
+    $neighbors = array_slice($distances, 0, $K);
+
+    // Majority vote for each actuator
+    $votes = ["heater" => 0, "fan" => 0, "pump" => 0, "light_act" => 0];
+    foreach ($neighbors as $n) {
+        $votes["heater"]    += $n["label"][0];
+        $votes["fan"]       += $n["label"][1];
+        $votes["pump"]      += $n["label"][2];
+        $votes["light_act"] += $n["label"][3];
+    }
+
+    // Final decision (majority rule)
+    return [
+        "heater"    => ($votes["heater"] > ($K / 2)) ? 1 : 0,
+        "fan"       => ($votes["fan"] > ($K / 2)) ? 1 : 0,
+        "pump"      => ($votes["pump"] > ($K / 2)) ? 1 : 0,
+        "light_act" => ($votes["light_act"] > ($K / 2)) ? 1 : 0,
+    ];
+}
+
+// Example test (uncomment for CLI testing)
+// print_r(knn_decision(26, 50, 45, 600));
 ?>
