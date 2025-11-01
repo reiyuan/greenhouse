@@ -1,87 +1,107 @@
 <?php
-require_once '../config.php';
+require_once __DIR__ . '/config.php';
 
-// Read JSON input
-$data = json_decode(file_get_contents("php://input"), true);
-if (!$data) {
-    echo json_encode(["error" => "No input data"]);
-    exit;
-}
+// === CONFIG ===
+define('K', 3); // Number of neighbors
 
-$temp = isset($data['temp']) ? floatval($data['temp']) : null;
-$humidity = isset($data['humidity']) ? floatval($data['humidity']) : null;
-$soil = isset($data['soil_moisture']) ? floatval($data['soil_moisture']) : null;
-$light = isset($data['light_intensity']) ? floatval($data['light_intensity']) : null;
+// === TRAINING DATA ===
+// Each sample represents: [temperature, humidity, soil_moisture, light_intensity]
+// Label format: ['heater', 'fan', 'pump', 'light_act']
+$training_data = [
+    // 🌤 Typical hot daytime (Philippines)
+    ["features" => [34, 60, 40, 30000], "label" => [0, 1, 0, 0]], // Fan ON (too hot)
+    ["features" => [33, 55, 50, 20000], "label" => [0, 1, 0, 0]], // Slightly hot
+    ["features" => [30, 70, 60, 10000], "label" => [0, 0, 0, 1]], // Moderate → Light ON
 
-// Check valid input
-if (is_null($temp) || is_null($humidity) || is_null($soil) || is_null($light)) {
-    echo json_encode(["error" => "Invalid data"]);
-    exit;
-}
+    // 🌧 Cool & Humid (Rainy)
+    ["features" => [25, 90, 80, 5000], "label" => [1, 0, 0, 1]], // Heater + Light ON
+    ["features" => [26, 85, 75, 3000], "label" => [1, 0, 0, 1]], // Dim light, cold
 
-// --- Fetch last command to preserve current states ---
-$lastCmd = $pdo->query("SELECT * FROM commands ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    // 🌞 Dry & Hot
+    ["features" => [35, 50, 20, 40000], "label" => [0, 1, 1, 0]], // Fan + Pump ON
+    ["features" => [32, 45, 30, 35000], "label" => [0, 1, 1, 0]], // Hot & Dry
 
-// Default to previous states or OFF
-$heater = $lastCmd ? $lastCmd['heater'] : 0;
-$fan = $lastCmd ? $lastCmd['fan'] : 0;
-$pump = $lastCmd ? $lastCmd['pump'] : 0;
-$light_act = $lastCmd ? $lastCmd['light_act'] : 0;
+    // 🌅 Evening (cooler)
+    ["features" => [28, 65, 55, 2000], "label" => [0, 0, 0, 1]], // Light ON
+    ["features" => [27, 60, 70, 1000], "label" => [0, 0, 0, 1]], // Dim + Moist
 
-// ================== TUNED KNN LOGIC ==================
-// Philippine tropical greenhouse thresholds (typical):
-// Temperature: 27–35°C
-// Humidity: 60–90%
-// Soil Moisture: 40–70%
-// Light (BH1750 lux): 100–50,000 lux
+    // 🌙 Night (Cold)
+    ["features" => [24, 80, 60, 500], "label" => [1, 0, 0, 1]], // Heater + Light
+    ["features" => [23, 85, 65, 300], "label" => [1, 0, 0, 1]], // Night mode
 
-// --- Heater & Fan Control ---
-if ($temp < 27) {           // Too cold
-    $heater = 1;
-    $fan = 0;
-} elseif ($temp > 33) {     // Too hot
-    $heater = 0;
-    $fan = 1;
-} else {                    // Comfortable range
-    $heater = 0;
-    $fan = 0;
-}
+    // 🌱 Dry soil, any temp
+    ["features" => [30, 60, 25, 10000], "label" => [0, 0, 1, 0]], // Pump ON
+    ["features" => [31, 55, 20, 12000], "label" => [0, 0, 1, 0]], // Very dry soil
 
-// --- Soil Moisture Control ---
-if ($soil < 40) {           // Dry
-    $pump = 1;
-} elseif ($soil > 70) {     // Wet
-    $pump = 0;
-}
-
-// --- Light Control (BH1750FVI) ---
-// Hysteresis prevents flicker
-if ($light < 150) {         // Dark (evening / cloudy)
-    $light_act = 1;         // Turn ON grow lights
-} elseif ($light > 500) {   // Bright enough (daytime)
-    $light_act = 0;         // Turn OFF lights
-}
-
-// =====================================================
-
-// Save decision to database
-$stmt = $pdo->prepare("INSERT INTO commands (heater, fan, pump, light_act, source) VALUES (?, ?, ?, ?, 'auto')");
-$stmt->execute([$heater, $fan, $pump, $light_act]);
-
-// Return JSON response for ESP32
-$response = [
-    "status" => "ok",
-    "temp" => $temp,
-    "humidity" => $humidity,
-    "soil_moisture" => $soil,
-    "light_intensity" => $light,
-    "heater" => $heater,
-    "fan" => $fan,
-    "pump" => $pump,
-    "light_act" => $light_act,
-    "source" => "auto"
+    // 🪴 Wet soil, bright light
+    ["features" => [29, 65, 80, 25000], "label" => [0, 0, 0, 0]], // Ideal → All OFF
 ];
 
-header('Content-Type: application/json');
-echo json_encode($response, JSON_PRETTY_PRINT);
+// === READ LATEST SENSOR READING ===
+$stmt = $pdo->query("SELECT temp, humidity, soil_moisture, light_intensity FROM sensor_readings ORDER BY id DESC LIMIT 1");
+$current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$current) {
+    echo json_encode(["error" => "No sensor data found"]);
+    exit;
+}
+
+$current_features = [
+    floatval($current['temp']),
+    floatval($current['humidity']),
+    floatval($current['soil_moisture']),
+    floatval($current['light_intensity'])
+];
+
+// === COMPUTE DISTANCES ===
+$distances = [];
+foreach ($training_data as $sample) {
+    $dist = euclidean_distance($sample['features'], $current_features);
+    $distances[] = ['distance' => $dist, 'label' => $sample['label']];
+}
+
+// Sort by distance
+usort($distances, function ($a, $b) {
+    return $a['distance'] <=> $b['distance'];
+});
+
+// Take top K neighbors
+$neighbors = array_slice($distances, 0, K);
+
+// === MAJORITY VOTE ===
+$votes = [0, 0, 0, 0];
+foreach ($neighbors as $n) {
+    for ($i = 0; $i < 4; $i++) {
+        $votes[$i] += $n['label'][$i];
+    }
+}
+
+// Convert to binary (if 2 out of 3 say ON → turn ON)
+$decision = array_map(function($v) {
+    return $v >= ceil(K / 2) ? 1 : 0;
+}, $votes);
+
+// === SAVE COMMAND ===
+$stmt = $pdo->prepare("INSERT INTO commands (heater, fan, pump, light_act, source, created_at) VALUES (?, ?, ?, ?, 'auto', NOW())");
+$stmt->execute([$decision[0], $decision[1], $decision[2], $decision[3]]);
+
+echo json_encode([
+    "status" => "ok",
+    "decision" => [
+        "heater" => $decision[0],
+        "fan" => $decision[1],
+        "pump" => $decision[2],
+        "light_act" => $decision[3]
+    ],
+    "current_reading" => $current
+]);
+
+// === FUNCTIONS ===
+function euclidean_distance($a, $b) {
+    $sum = 0;
+    for ($i = 0; $i < count($a); $i++) {
+        $sum += pow($a[$i] - $b[$i], 2);
+    }
+    return sqrt($sum);
+}
 ?>
