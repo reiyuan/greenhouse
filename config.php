@@ -1,34 +1,32 @@
 <?php
-/**
- * PostgreSQL Database Configuration for Render.com
- * -------------------------------------------------
- * Make sure to replace the placeholders below with
- * your actual Render PostgreSQL credentials.
- */
+// FIX: Prevent BOM / accidental output
+ob_start();
 
-// Example Render PostgreSQL connection string:
-// postgres://<username>:<password>@<host>:5432/<database>
+// Philippine Time
+date_default_timezone_set("Asia/Manila");
 
-$host = "singapore-postgres.render.com";      // e.g. dpg-cj12345abcd12345.a.render.com
+// PostgreSQL configuration
+$host = "singapore-postgres.render.com";
 $port = "5432";
-$dbname = "postgresql_greenhouse2";      // e.g. greenhouse_db
-$user = "postgresql_greenhouse2_user";        // e.g. greenhouse_user
-$pass = "1K37jHHcjCKIFxPZb3XAMHY1yfViDq1s";    // from Render dashboard
+$dbname = "postgresql_greenhouse2";
+$user = "postgresql_greenhouse2_user";
+$pass = "1K37jHHcjCKIFxPZb3XAMHY1yfViDq1s";
 
 try {
-    // ✅ Use PostgreSQL PDO driver
-    $pdo = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $pass);
+    $pdo = new PDO(
+        "pgsql:host=$host;port=$port;dbname=$dbname",
+        $user,
+        $pass,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
 
-    // Optional: force UTF-8 encoding
     $pdo->exec("SET NAMES 'utf8'");
 
-    // Set error handling to exception mode
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // ✅ Test connection
-    // echo "✅ Connected to PostgreSQL successfully.";
 } catch (PDOException $e) {
-    die("❌ PostgreSQL connection failed: " . $e->getMessage());
+    die("PostgreSQL connection failed: " . $e->getMessage());
 }
-?>
 
+// FIX: No closing tag!
