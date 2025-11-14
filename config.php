@@ -11,9 +11,9 @@
 
 $host = "singapore-postgres.render.com";      // e.g. dpg-cj12345abcd12345.a.render.com
 $port = "5432";
-$dbname = "postgresql_greenhouse";      // e.g. greenhouse_db
-$user = "postgresql_greenhouse_user";        // e.g. greenhouse_user
-$pass = "FijLlTawgYqe3kfoxvCmCvBI5wvJRbvB";    // from Render dashboard
+$dbname = "postgresql_greenhouse2";      // e.g. greenhouse_db
+$user = "postgresql_greenhouse2_user";        // e.g. greenhouse_user
+$pass = "1K37jHHcjCKIFxPZb3XAMHY1yfViDq1s";    // from Render dashboard
 
 try {
     // ✅ Use PostgreSQL PDO driver
@@ -31,3 +31,4 @@ try {
     die("❌ PostgreSQL connection failed: " . $e->getMessage());
 }
 ?>
+
