@@ -9,7 +9,7 @@ $K = 3;
 // Indoor environment training dataset
 $training_data = [
     // ☀ Warm, bright day near window
-    ["features" => [27, 45, 50, 1500], "label" => [0, 1, 0, 0]], // Fan ON (warm)
+    ["features" => [27, 45, 50, 1500], "label" => [0, 1, 0, 0]], // Fan ON (warm) temp, humidity, soil, lux ---- heater, fan, pump, led
     ["features" => [25, 50, 55, 1000], "label" => [0, 0, 0, 0]], // Comfortable
     ["features" => [24, 55, 60, 700],  "label" => [0, 0, 0, 0]], // Ideal condition
 
@@ -101,3 +101,4 @@ function knn_decision($temp, $humidity, $soil, $light) {
 // Example test (uncomment for CLI testing)
 // print_r(knn_decision(26, 50, 45, 600));
 ?>
+
